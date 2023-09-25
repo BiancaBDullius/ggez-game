@@ -2,10 +2,10 @@ extern crate ggez;
 use ggez::conf::WindowMode;
 use ggez::event::{self, EventHandler};
 use ggez::graphics::Rect;
-use ggez::graphics::{self, Color};
+use ggez::graphics::{self, Color, Text};
 use ggez::graphics::{DrawParam, Mesh};
 use ggez::input::keyboard::KeyCode;
-use ggez::{Context, ContextBuilder, GameResult};
+use ggez::{glam::*, Context, ContextBuilder, GameResult};
 
 use std::env;
 
@@ -13,6 +13,7 @@ const WINDOW_BOTTOM: f32 = 390.0;
 const WINDOW_Y: f32 = 800.0;
 const WINDOW_H: f32 = 800.0;
 const WINDOW_MIDDLE: f32 = 650.0;
+const MOVIMENTATION_FORCE: f32 = 0.0009;
 #[derive(Clone, Copy, PartialEq, Debug)]
 struct Vector2 {
     x: f32,
@@ -65,9 +66,9 @@ impl Rocket {
     fn new(x: f32, y: f32, weight: f32, fuel: f32) -> Rocket {
         let acceleration = Vector2::new(0.0, 0.0);
         let velocity = Vector2::new(0.0, 0.0);
-        let up_force = Vector2::new(0.0, -0.0009);
-        let left_force = Vector2::new(-0.0009, 0.0);
-        let right_force = Vector2::new(0.0009, 0.0);
+        let up_force = Vector2::new(0.0, -MOVIMENTATION_FORCE);
+        let left_force = Vector2::new(-MOVIMENTATION_FORCE, 0.0);
+        let right_force = Vector2::new(MOVIMENTATION_FORCE, 0.0);
 
         Rocket {
             shape: Rect::new(x, y, 60.0, 150.0),
@@ -85,12 +86,14 @@ impl Rocket {
 
     fn create_mesh(&self, context: &mut Context) -> GameResult<Mesh> {
         let rect_bounds = Rect::new(0.0, 0.0, self.shape.w, self.shape.h);
+
         let mesh = graphics::Mesh::new_rectangle(
             context,
             graphics::DrawMode::fill(),
             rect_bounds,
             Color::WHITE,
         )?;
+
         Ok(mesh)
     }
 
@@ -127,9 +130,9 @@ impl Rocket {
     }
 
     fn down_movimentation(&mut self) {
-        let down_force = Vector2::new(0.0, -0.00009);
+        let down_force = Vector2::new(0.0, MOVIMENTATION_FORCE);
         self.apply_force(&down_force);
-        self.acceleration.y *= 0.0;
+        self.acceleration.y -= MOVIMENTATION_FORCE;
     }
     fn left_movimentation(&mut self) {
         let left_force = self.left_force.clone();
@@ -201,17 +204,18 @@ impl EventHandler for MyGame {
     fn update(&mut self, context: &mut Context) -> GameResult {
         match self.game_state {
             GameState::Playing => {
-                println!("Has Fuel: {}", self.rocket.has_fuel());
                 if self.rocket.is_flying {
                     self.rocket.apply_force(&self.gravity);
                     self.rocket.fuel -= &self.gravity.y * self.rocket.weight * 0.01;
                     self.rocket.fly();
                     self.rocket.hit_ground(WINDOW_Y);
                 } else if self.rocket.is_running_into_platform(&self.platform) {
+                    println!("Parabéns, você aterrizou a nave na plataforma!");
                     self.gravity = Vector2::new(0.0, 0.0);
                     self.rocket.fall(20.0);
                     self.game_state = GameState::GameOver;
                 } else {
+                    println!("Perdeu o jogo, a nave caiu no chão!");
                     self.gravity = Vector2::new(0.0, 0.0);
                     self.rocket.fall(0.0);
                     self.game_state = GameState::GameOver;
@@ -251,7 +255,7 @@ impl EventHandler for MyGame {
                 }
             }
             GameState::GameOver => {
-                println!("Game over");
+                // println!("Game over");
             }
         }
 
@@ -259,7 +263,15 @@ impl EventHandler for MyGame {
     }
 
     fn draw(&mut self, context: &mut Context) -> GameResult {
-        let mut canvas = graphics::Canvas::from_frame(context, Color::BLACK);
+        let mut canvas =
+            graphics::Canvas::from_frame(context, Color::from([0.02, 0.03, 0.15, 1.0]));
+
+        let fuel_text = Text::new(format!("Combustivel: {:.2}", self.rocket.fuel));
+
+        canvas.draw(
+            &fuel_text,
+            graphics::DrawParam::from([0.0, 0.0]).color(Color::WHITE),
+        );
 
         canvas.draw(
             &self.rocket_mesh,
@@ -310,9 +322,9 @@ fn main() {
 
     let rocket = Rocket::new(0.0, 0.0, weight, fuel);
     let platform = Platform::new(160.0, WINDOW_BOTTOM, 100.0, 30.0);
-    let gravity = Vector2::new(0.0, gravity);
+    let game_gravity = Vector2::new(0.0, gravity);
 
-    let my_game = MyGame::new(&mut context, rocket, gravity, platform).unwrap();
+    let my_game = MyGame::new(&mut context, rocket, game_gravity, platform).unwrap();
 
     event::run(context, event_loop, my_game);
 }
